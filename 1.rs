@@ -5,7 +5,6 @@ use std::env;
 fn main() {
    let args: Vec<String> = env::args().collect();
    let filename = &args[1];
-   println!("{}", filename);
    let file = File::open(filename).expect("Can't open file");
    let reader = io::BufReader::new(file);
    let inputs: Vec<i32> = reader.lines().map(|line| line.unwrap().parse::<i32>().unwrap()).collect();
