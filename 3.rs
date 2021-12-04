@@ -2,10 +2,27 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::env;
 
-fn process(items: &Vec<String>, bit: i32) {
-  for i in 0..items[0].len()-1 {
-    println!("{}", i);
+fn process(items: Vec<String>, flip: bool, pos: usize) -> String {
+  if items.len() == 1 {
+    println!("returning");
+    items[0].clone()
+  } else {
+    let ct1 = items.iter().filter(|item| item.as_bytes()[pos] == b'1').count();
+    let ge1 = 2 * ct1 >= items.len();
+    let bit = if flip ^ ge1 { b'0'} else { b'1' };
+    let items_filtered : Vec<String> = items.into_iter().filter(|item| item.as_bytes()[pos] == bit).collect::<Vec<_>>();
+    assert!(items_filtered.len() >= 1);
+    process(items_filtered, flip, pos+1)
   }
+}
+
+fn bin2int(s: String) -> i32 {
+  let mut num: i32 = 0;
+  let c = s.as_bytes();
+  for i in 0..c.len() {
+    num |= ((c[c.len() - i - 1] == b'1') as i32) << i;
+  }
+  num
 }
 
 fn main() {
@@ -34,6 +51,9 @@ fn main() {
   }
   println!("gamma = {} epsilon = {} gamma * epsilon = {}", gamma, epsilon, gamma * epsilon);
 
-  let oxygen_gen = process(&lines, 0);
-  let co2_gen = process(&lines, 1);
+  let oxygen_gen = process(lines.clone(), true, 0);
+  let co2_gen = process(lines.clone(), false, 0);
+  let oxygen_gen_int = bin2int(oxygen_gen);
+  let co2_gen_int = bin2int(co2_gen);
+  println!("oxygen = {}, co2 = {}, product = {}", oxygen_gen_int, co2_gen_int, oxygen_gen_int * co2_gen_int);
 }
