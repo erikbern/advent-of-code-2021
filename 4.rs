@@ -3,25 +3,6 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::env;
 
-fn play(t_matrix: &[[i32; 5]; 5]) -> i32 {
-  let mut t_min = 999999;
-  for i in 0..5 {
-    let mut t_max = 0;
-    for j in 0..5 {
-      t_max = std::cmp::max(t_max, t_matrix[i][j]);
-    }
-    t_min = std::cmp::min(t_min, t_max);
-  }
-  for j in 0..5 {
-    let mut t_max = 0;
-    for i in 0..5 {
-      t_max = std::cmp::max(t_max, t_matrix[i][j]);
-    }
-    t_min = std::cmp::min(t_min, t_max);
-  }
-  t_min
-}
-
 fn main() {
   let args: Vec<String> = env::args().collect();
   let filename = &args[1];
@@ -29,17 +10,20 @@ fn main() {
   let reader = io::BufReader::new(file);
   let mut lines = reader.lines();
   let numbers: Vec<i32> = lines.next().unwrap().unwrap().split(',').map(|s| s.parse().unwrap()).collect();
+
+  // For each number, track when it was called (todo: dupes)
   let mut ts = HashMap::<i32, i32>::new();
   for i in 0..numbers.len() {
     ts.insert(numbers[i], i as i32);
   }
 
-  println!("{:?}", numbers);
   let mut t_min_all: i32 = 999999;
   let mut min_answer: i32 = 0;
   let mut t_max_all: i32 = 0;
   let mut max_answer: i32 = 0;
+
   loop {
+    // Read matrix and build up a matrix that stores the time t when the number was called
     let empty_line = lines.next();
     if empty_line.is_none() {
       break;
@@ -54,8 +38,30 @@ fn main() {
         t_matrix[i][j] = if ts.contains_key(&row[j]) { *ts.get(&row[j]).unwrap() } else { 999999 };
       }
     }
-    let t_min: i32 = play(&t_matrix);
+
+    // Scan rows to find the first
+    let mut t_min = 999999;
+    for i in 0..5 {
+      let mut t_max = 0;
+      for j in 0..5 {
+        t_max = std::cmp::max(t_max, t_matrix[i][j]);
+      }
+      t_min = std::cmp::min(t_min, t_max);
+    }
+
+    // Scan cols to find the first
+    for j in 0..5 {
+      let mut t_max = 0;
+      for i in 0..5 {
+        t_max = std::cmp::max(t_max, t_matrix[i][j]);
+      }
+      t_min = std::cmp::min(t_min, t_max);
+    }
+
+    // Find called number
     let called_number: i32 = numbers[t_min as usize];
+
+    // Add up unmarked
     let mut sum_unmarked: i32 = 0;
     for i in 0..5 {
       for j in 0..5 {
@@ -63,6 +69,8 @@ fn main() {
       }
     }
     println!("{} {} {}", t_min, called_number, sum_unmarked);
+
+    // Check against all other boards (so far)
     if t_min < t_min_all {
       t_min_all = t_min;
       min_answer = called_number * sum_unmarked;
