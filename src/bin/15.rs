@@ -42,7 +42,7 @@ fn main() {
   q[0].push(Coord{ x: 0, y: 0});
 
   let mut best = Vec::<Vec<usize>>::new();
-  for y in 0..(h as usize) {
+  for _y in 0..(h as usize) {
     best.push(vec![999999999; w as usize]);
   }
   println!("{:?}", best);
