@@ -15,6 +15,7 @@ struct Token {
   value: i32,
 }
 
+/*
 fn print(a: &Vec<Token>) {
   let mut output = Vec::<char>::new();
   for token in a.iter() {
@@ -30,6 +31,7 @@ fn print(a: &Vec<Token>) {
   let s: String = output.into_iter().collect();
   println!("{}", s);
 }
+*/
 
 fn reduce_one(a: &Vec<Token>) -> (Vec<Token>, bool) {
   let mut depth: usize = 0;

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::env;
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 struct Beacon {
   coords: [i32; 3],
@@ -11,6 +11,7 @@ struct Beacon {
 
 struct Scanner {
   beacons: Vec<Beacon>,
+  offset: [i32; 3], // In scanner 0's coordinate system
 }
 
 fn det(n: &[[i32; 3]; 3]) -> i32 {
@@ -40,51 +41,6 @@ fn sub(a: &[i32; 3], b: &[i32; 3]) -> [i32; 3] {
   c
 }
 
-
-struct DisjointSet {
-  n_groups: usize,
-  group_sizes: Vec<usize>,
-  representatives: Vec<usize>,
-}
-
-impl DisjointSet {
-  fn new(n_groups: usize) -> Self {
-    DisjointSet {
-      n_groups: n_groups,
-      group_sizes: vec![1; n_groups],
-      representatives: (0..n_groups).collect(),
-    }
-  }
-
-  fn representative(&self, member: usize) -> usize {
-    if self.representatives[member] == member {
-      member
-    } else {
-      self.representative(self.representatives[member])
-    }
-  }
-
-  fn merge(&mut self, a: usize, b: usize) {
-    let repr_a = self.representative(a);
-    let repr_b = self.representative(b);
-    if repr_a == repr_b {
-       // nothing to do
-    } else if self.group_sizes[repr_a] >= self.group_sizes[repr_b] {
-       self.representatives[repr_b] = repr_a;
-       self.group_sizes[repr_a] += self.group_sizes[repr_b];
-       self.n_groups -= 1;
-    } else {
-       self.representatives[repr_a] = repr_b;
-       self.group_sizes[repr_b] += self.group_sizes[repr_a];
-       self.n_groups -= 1;
-    }
-  }
-
-  fn len(&self) -> usize {
-    self.n_groups
-  }
-}
-
 fn main() {
   let args: Vec<String> = env::args().collect();
   let filename = &args[1];
@@ -99,7 +55,7 @@ fn main() {
     if scanner_re.is_match(&line) {
       scanner_i = scanner_re.captures(&line).unwrap()[1].parse::<usize>().unwrap();
       while scanners.len() <= scanner_i {
-        scanners.push(Scanner{ beacons: Vec::<Beacon>::new() });
+        scanners.push(Scanner{ beacons: Vec::<Beacon>::new(), offset: [0i32; 3] });
       }
     } else if line == "" {
       continue;
@@ -145,46 +101,43 @@ fn main() {
     }
   }
 
-  // Create a disjoint set used to merge beacons
-  let mut disjoint_set = DisjointSet::new(n_beacons);
+  let mut h = HashSet::<[i32; 3]>::new();
+  
+  // Add scanner 0's beacons to the set of coordinates we know
+  for a_i in 0..scanners[0].beacons.len() {
+    h.insert(scanners[0].beacons[a_i].coords);
+  }
 
-  // Go through every pair of scanners
-  for i in 0..scanners.len() {
-    for j in 0..scanners.len() {
-      if i == j { continue; }
-
+  let mut remaining = HashSet::<usize>::from_iter(1..scanners.len());
+  while !remaining.is_empty() {
+    println!("remaining: {}", remaining.len());
+    'search: for i in remaining.iter() {
+      println!("... checking {}", i);
+      let i: usize = *i;
       for k in 0..24 {
-        for a_i in 0..scanners[i].beacons.len() {
-          for a_j in 0..scanners[j].beacons.len() {
-            let offset: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_i].coords), &scanners[j].beacons[a_j].coords);
-
-            // Create a hash map of scanner i's beacons
-            let mut h = HashMap::<[i32; 3], usize>::new();
-            for b_i in 0..scanners[i].beacons.len() {
-              let proj: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[b_i].coords), &offset);
-              h.insert(proj, scanners[i].beacons[b_i].id);
-            }
-
-            // Look up scanner j's beacon
+        for anchor in h.iter() {
+	  for a_j in 0..scanners[i].beacons.len() {
+	    let offset: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_j].coords), &anchor);
             let mut n_matches: usize = 0;
-            for b_j in 0..scanners[j].beacons.len() {
-              if h.contains_key(&scanners[j].beacons[b_j].coords) {
+            for a_i in 0..scanners[i].beacons.len() {
+              let proj: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_i].coords), &offset);
+              if h.contains(&proj) {
                 n_matches += 1;
               }
-            }
-            if n_matches >= 12 {
-              for b_j in 0..scanners[j].beacons.len() {
-                if h.contains_key(&scanners[j].beacons[b_j].coords) {
-		  let b_id = scanners[j].beacons[b_j].id;
-		  let a_id = *h.get(&scanners[j].beacons[b_j].coords).unwrap();
-		  disjoint_set.merge(a_id, b_id);
-                }
+	    }
+	    if n_matches >= 12 {
+	      scanners[i].offset = offset;
+              for a_i in 0..scanners[i].beacons.len() {
+                let proj: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_i].coords), &offset);
+                h.insert(proj);
               }
+	      remaining.remove(&i);
+	      break 'search 
             }
-          }
+	  }
         }
       }
-      println!("{} {} -> {}", i, j, disjoint_set.len());
     }
   }
+  println!("number of beacons: {}", h.len());
 }
