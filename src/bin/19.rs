@@ -4,13 +4,8 @@ use std::env;
 use regex::Regex;
 use std::collections::HashSet;
 
-struct Beacon {
-  coords: [i32; 3],
-  id: usize,
-}
-
 struct Scanner {
-  beacons: Vec<Beacon>,
+  beacons: Vec<[i32; 3]>,
   offset: [i32; 3], // In scanner 0's coordinate system
 }
 
@@ -49,22 +44,19 @@ fn main() {
   let scanner_re = Regex::new(r"--- scanner (\d+) ---").unwrap();
   let mut scanner_i: usize = 0;
   let mut scanners = Vec::<Scanner>::new();
-  let mut n_beacons: usize = 0;
   for line in reader.lines() {
     let line = line.unwrap();
     if scanner_re.is_match(&line) {
       scanner_i = scanner_re.captures(&line).unwrap()[1].parse::<usize>().unwrap();
       while scanners.len() <= scanner_i {
-        scanners.push(Scanner{ beacons: Vec::<Beacon>::new(), offset: [0i32; 3] });
+        scanners.push(Scanner{ beacons: Vec::<[i32; 3]>::new(), offset: [0i32; 3] });
       }
     } else if line == "" {
       continue;
     } else {
       let items: Vec<&str> = line.split(",").collect();
       let coords: Vec<i32> = items.iter().map(|item| item.parse::<i32>().unwrap()).collect();
-      let beacon = Beacon { coords: [coords[0], coords[1], coords[2]], id: n_beacons };
-      scanners[scanner_i].beacons.push(beacon);
-      n_beacons += 1;
+      scanners[scanner_i].beacons.push([coords[0], coords[1], coords[2]]);
     }
   }
   let mut m = [[[0i32; 3]; 3]; 24];
@@ -105,7 +97,7 @@ fn main() {
   
   // Add scanner 0's beacons to the set of coordinates we know
   for a_i in 0..scanners[0].beacons.len() {
-    h.insert(scanners[0].beacons[a_i].coords);
+    h.insert(scanners[0].beacons[a_i]);
   }
 
   let mut remaining = HashSet::<usize>::from_iter(1..scanners.len());
@@ -117,10 +109,10 @@ fn main() {
       for k in 0..24 {
         for anchor in h.iter() {
 	  for a_j in 0..scanners[i].beacons.len() {
-	    let offset: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_j].coords), &anchor);
+	    let offset: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_j]), &anchor);
             let mut n_matches: usize = 0;
             for a_i in 0..scanners[i].beacons.len() {
-              let proj: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_i].coords), &offset);
+              let proj: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_i]), &offset);
               if h.contains(&proj) {
                 n_matches += 1;
               }
@@ -128,7 +120,7 @@ fn main() {
 	    if n_matches >= 12 {
 	      scanners[i].offset = offset;
               for a_i in 0..scanners[i].beacons.len() {
-                let proj: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_i].coords), &offset);
+                let proj: [i32; 3] = sub(&mult(&m[k], &scanners[i].beacons[a_i]), &offset);
                 h.insert(proj);
               }
 	      remaining.remove(&i);
@@ -140,4 +132,15 @@ fn main() {
     }
   }
   println!("number of beacons: {}", h.len());
+
+  let mut max_dist: i32 = 0;
+  for i in 0..scanners.len() {
+    for j in 0..scanners.len() {
+      let dist: i32 = (0..3).map(|q| (scanners[i].offset[q] - scanners[j].offset[q]).abs()).sum();
+      if dist > max_dist {
+        max_dist = dist;
+      }
+    }
+  }
+  println!("max distance: {}", max_dist);
 }
