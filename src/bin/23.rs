@@ -4,6 +4,7 @@ use std::env;
 use std::cmp::{min, max};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
+use itertools::Itertools;
 
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -35,14 +36,16 @@ fn dist1(a: &XY, b: &XY) -> i32 {
 fn heuristic(pos: &Pos) -> i32 {
   let mut total: i32 = 0;
   for i in 0..4 {
-    let goal_1 = XY { x: 2*(i+1), y: 1 };
-    let goal_2 = XY { x: 2*(i+1), y: 2 };
-    let pos_1: &XY = &pos.xys[i as usize][0];
-    let pos_2: &XY = &pos.xys[i as usize][1];
-    total += 10_i32.pow(i as u32) * min(
-      dist1(pos_1, &goal_1) + dist1(pos_2, &goal_2),
-      dist1(pos_1, &goal_2) + dist1(pos_2, &goal_1),
-    );
+    let dists: Vec<i32> = (0..2).permutations(2).map(|perm| {
+      let mut sum: i32 = 0;
+      for j in 0..2 {
+        let pos = pos.xys[i as usize][j];
+        let goal = XY { x: 2*(i+1), y: perm[j]+1 };
+        sum += dist1(&pos, &goal);
+      }
+      sum
+    }).collect();
+    total += 10_i32.pow(i as u32) * dists.iter().min().unwrap();
   }
   total
 }
@@ -84,9 +87,10 @@ fn make_moves(state: &State) -> Vec<State> {
     for j in 0..2 {
       if pos.xys[i][j].y > 0 {
         // has to move from a room to the hallway
-        // If it's at y=2 then make sure y=1 isn't taken (doesn't make sense to move to y=1?)
-        let up_xy = XY { x: pos.xys[i][j].x, y: 1};
-        if pos.xys[i][j].y == 2 && h.contains_key(&up_xy) { continue; }
+        // Make sure all positions are empty above it
+        let x = pos.xys[i][j].x as i32;
+        let y = pos.xys[i][j].y as i32;
+        if (0..y).any(|y| h.contains_key(&(XY { x: x, y: y}))) { continue; }
         for x2 in pos.xys[i][j].x..11 {  // move up and to the right
           let new_xy =  XY { x: x2 as i32, y: 0 };
           if h.contains_key(&new_xy) { break; }
@@ -104,23 +108,28 @@ fn make_moves(state: &State) -> Vec<State> {
         // has to move from the hallway into a room
 	let x = pos.xys[i][j].x as i32;
         let x2 = 2*(i+1) as i32;
+
         // Make sure the hallway is clear
 	if x2 < x {
           if (x..x2).any(|x| h.contains_key(&(XY { x: x, y: 0}))) { continue; }
 	} else {
           if ((x+1)..(x2+1)).any(|x| h.contains_key(&(XY { x: x, y: 0}))) { continue; }
         }
-        let down_1_xy = XY { x: x2, y: 1};
-        let down_2_xy = XY { x: x2, y: 2};
-        if h.contains_key(&down_1_xy) { continue };
-        if !h.contains_key(&down_2_xy) {
-          // If y=2 is empty then always go there
-          new_states.push(make_move(state, i, j, x2, 2));
-        } else {
-          let i_cur: usize = *h.get(&down_2_xy).unwrap();
-          if i_cur == i {
-            new_states.push(make_move(state, i, j, x2, 1));
+
+	// Find the largest (furthest down) y that's empty
+	let mut invalid = false;
+	let mut found_y = None;
+	for y2 in (1..3).rev() {
+          let xy = XY { x: x2, y: y2 };
+	  if h.contains_key(&xy) {
+            if h[&xy] != i { invalid = true; }
+	    else if found_y.is_some() { invalid = true; }	    
+          } else if found_y.is_none() {
+            found_y = Some(y2) ;
           }
+        }
+	if found_y.is_some() && !invalid {
+          new_states.push(make_move(state, i, j, x2, found_y.unwrap()));
         }
       }
     }
